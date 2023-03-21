@@ -8,15 +8,11 @@
 <h4 align="center">Orangebeard Robot Framework Listener</h4>
 
 <p align="center">
-  <a href="https://repo.maven.apache.org/maven2/io/orangebeard/robotframework-listener/">
-    <img src="https://img.shields.io/maven-central/v/io.orangebeard/robotframework-listener?style=flat-square"
-      alt="MVN Version" />
-  </a>
   <a href="https://github.com/orangebeard-io/robotframework-listener/actions">
     <img src="https://img.shields.io/github/workflow/status/orangebeard-io/robotframework-listener/release?style=flat-square"
       alt="Build Status" />
   </a>
-  <a href="https://github.com/orangebeard-io/robotframework-listener/blob/master/LICENSE.txt">
+  <a href="https://github.com/orangebeard-io/robotframework-listener/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/orangebeard-io/robotframework-listener?style=flat-square"
       alt="License" />
   </a>
@@ -33,7 +29,7 @@
 
 ### Install the pip package
 
-`pip install orangebeard-robotframework-listener`
+`pip install orangebeard-robotframework`
 
 
 ## Usage

@@ -1,7 +1,9 @@
+import asyncio
 import os
+import platform
 import re
-from uuid import UUID
-from orangebeard.client import OrangebeardClient
+
+from orangebeard.async_client import AsyncOrangebeardClient
 from orangebeard.entity.TestType import TestType
 from orangebeard.entity.TestStatus import TestStatus
 from orangebeard.entity.LogLevel import LogLevel
@@ -42,6 +44,9 @@ class listener:
     ROBOT_LISTENER_API_VERSION = 2
 
     def __init__(self):
+        if platform.system() == "Windows":
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
         self.suites = {}
         self.tests = {}
         self.steps = []
@@ -56,16 +61,17 @@ class listener:
         suiteKey = ".".join(suiteNames)
 
         if not self.suites.get(suiteKey):
-            startedSuites = self.client.startSuite(self.testRunUUID, suiteNames)
+            startedSuites = asyncio.run(
+                self.client.startSuite(self.testRunUUID, suiteNames)
+            )
             for suite in startedSuites:
-                self.suites[".".join(suite.get("fullSuitePath"))] = suite.get(
-                    "suiteUUID"
-                )
+                self.suites[".".join(suiteNames)] = suite
+                suiteNames.pop()
 
-        suiteUUID = UUID(self.suites.get(suiteKey))
+        suiteUUID = self.suites.get(suiteKey)
 
-        testUUID = self.client.startTest(
-            self.testRunUUID, suiteUUID, name, TestType.TEST
+        testUUID = asyncio.run(
+            self.client.startTest(self.testRunUUID, suiteUUID, name, TestType.TEST)
         )
         self.tests[attributes.get("id")] = testUUID
 
@@ -73,20 +79,21 @@ class listener:
         testUUID = self.tests.get(attributes.get("id"))
         status = get_status(attributes.get("status"))
         message = attributes.get("message")
-
         if len(message) > 0:
             level = LogLevel.INFO if status == TestStatus.PASSED else LogLevel.ERROR
-            self.client.log(self.testRunUUID, testUUID, level, message)
-
-        self.client.finishTest(testUUID, self.testRunUUID, status)
+            asyncio.run(self.client.log(self.testRunUUID, testUUID, level, message))
+        asyncio.run(self.client.finishTest(testUUID, self.testRunUUID, status))
         self.tests.pop(attributes.get("id"))
 
     def start_keyword(self, name, attributes):
         testUUID = list(self.tests.values())[-1]
         parentStepUUID = self.steps[-1] if len(self.steps) > 0 else None
-        
-        stepUUID = self.client.startStep(
-            self.testRunUUID, testUUID, attributes.get("kwname"), parentStepUUID)
+
+        stepUUID = asyncio.run(
+            self.client.startStep(
+                self.testRunUUID, testUUID, attributes.get("kwname"), parentStepUUID
+            )
+        )
 
         self.steps.append(stepUUID)
 
@@ -94,7 +101,7 @@ class listener:
         stepUUID = self.steps[-1]
         status = get_status(attributes.get("status"))
 
-        self.client.finishStep(stepUUID, self.testRunUUID, status)
+        asyncio.run(self.client.finishStep(stepUUID, self.testRunUUID, status))
         self.steps.pop()
 
     def log_message(self, message):
@@ -102,32 +109,43 @@ class listener:
 
         testUUID = testUUID = list(self.tests.values())[-1]
 
-        level = get_level(message['level'])
-        logMsg = message['message']
+        level = get_level(message["level"])
+        logMsg = message["message"]
 
-        if message['html'] is "yes":
+        if message["html"] is "yes":
             images = re.findall('src="(.+?)"', logMsg)
             if len(images) > 0:
-                logUUID = self.client.log(
-                    self.testRunUUID, testUUID, level, images[0], stepUUID
+                logUUID = asyncio.run(
+                    self.client.log(
+                        self.testRunUUID, testUUID, level, images[0], stepUUID
+                    )
                 )
 
                 attachmentFile = AttachmentFile(
                     images[0],
                     open(
                         "{0}{1}{2}".format(self.outDir, os.path.sep, images[0]), "rb"
-                    ).read()
+                    ).read(),
                 )
                 attachmentMeta = AttachmentMetaData(
                     self.testRunUUID, testUUID, logUUID, stepUUID
                 )
-                self.client.logAttachment(attachmentFile, attachmentMeta)
+                asyncio.run(self.client.logAttachment(attachmentFile, attachmentMeta))
             else:
-                self.client.log(
-                    self.testRunUUID, testUUID, level, logMsg, stepUUID, LogFormat.HTML
+                asyncio.run(
+                    self.client.log(
+                        self.testRunUUID,
+                        testUUID,
+                        level,
+                        logMsg,
+                        stepUUID,
+                        LogFormat.HTML,
+                    )
                 )
         else:
-            self.client.log(self.testRunUUID, testUUID, level, logMsg, stepUUID)
+            asyncio.run(
+                self.client.log(self.testRunUUID, testUUID, level, logMsg, stepUUID)
+            )
 
     # #def message(self, message):
     #     ## Send log
@@ -142,7 +160,8 @@ class listener:
     #     print("LogFile: {0}".format(path))
 
     def close(self):
-        self.client.finishTestRun(self.testRunUUID)
+        asyncio.run(self.client.finishTestRun(self.testRunUUID))
+        self.eventLoop.close()
 
     def startTestRunIfNeeded(self):
         if not hasattr(self, "testRunUUID"):
@@ -154,11 +173,11 @@ class listener:
             self.outDir = get_variable("OUTPUT_DIR")
 
             ##create client and initialize context
-            self.client = OrangebeardClient(
+            self.client = AsyncOrangebeardClient(
                 self.endpoint, self.accessToken, self.project
             )
 
             ##start test run
-            self.testRunUUID = self.client.startTestrun(
-                self.testset, description=self.description
+            self.testRunUUID = asyncio.run(
+                self.client.startTestrun(self.testset, description=self.description)
             )

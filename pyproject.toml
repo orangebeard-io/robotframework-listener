@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orangebeard-robotframework"
-version = "1.0.1"
+version = "1.1.0"
 authors = [
   { name="Tom Heintzberger", email="tom@orangebeard.io" },
 ]
@@ -16,7 +16,10 @@ classifiers = [
         "License :: OSI Approved :: GNU Affero General Public License v3",
         "Operating System :: OS Independent",
 ]
-dependencies = ["robotframework", "orangebeard-client"]
+dependencies = [
+  "robotframework>=6.1.1", 
+  "orangebeard-client"
+  ]
 
 [project.urls]
 "Homepage" = "https://github.com/orangebeard-io/robotframework-listener"

@@ -2,6 +2,11 @@ import asyncio
 import os
 import platform
 import re
+import hashlib
+import json
+
+from datetime import datetime
+from pytz import reference
 
 from orangebeard.async_client import AsyncOrangebeardClient
 from orangebeard.entity.TestType import TestType
@@ -9,7 +14,11 @@ from orangebeard.entity.TestStatus import TestStatus
 from orangebeard.entity.LogLevel import LogLevel
 from orangebeard.entity.LogFormat import LogFormat
 from orangebeard.entity.Attachment import AttachmentFile, AttachmentMetaData
+from orangebeard.entity.Attribute import Attribute
 from robot.libraries.BuiltIn import BuiltIn
+from robot.api.interfaces import ListenerV2
+
+tz = reference.LocalTimezone()
 
 
 def get_variable(name, defaultValue=None):
@@ -24,7 +33,7 @@ def get_status(statusStr) -> TestStatus:
     if statusStr in ("NOT RUN", "SKIP"):
         return TestStatus.SKIPPED
     else:
-        raise Exception("Unknown status: {0}".format(statusStr))
+        raise ValueError("Unknown status: {0}".format(statusStr))
 
 
 def get_level(levelStr) -> LogLevel:
@@ -37,41 +46,69 @@ def get_level(levelStr) -> LogLevel:
     if levelStr in ("DEBUG", "TRACE"):
         return LogLevel.DEBUG
     else:
-        raise Exception("Unknown level: {0}".format(levelStr))
+        raise ValueError("Unknown level: {0}".format(levelStr))
 
 
-class listener:
-    ROBOT_LISTENER_API_VERSION = 2
-
+class listener(ListenerV2):
     def __init__(self):
         if platform.system() == "Windows":
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+        self.eventloop = asyncio.get_event_loop()
 
         self.suites = {}
         self.tests = {}
         self.steps = []
 
     def start_suite(self, name, attributes):
-        ## start suite and register in context
         self.startTestRunIfNeeded()
+        suiteKey = attributes.get("longname")
+        suiteNames = list(map(self.pad_suiteName, suiteKey.split(".")))
+
+        if not self.suites.get(suiteKey):
+            startedSuites = self.eventloop.run_until_complete(
+                self.client.startSuite(
+                    self.testRunUUID, suiteNames, description=attributes.get("doc")
+                )
+            )
+            for suite in startedSuites:
+                self.suites[".".join(suiteNames)] = suite
+                suiteNames.pop()
+
+    def pad_suiteName(self, suiteName):
+        if len(suiteName) < 3:
+            return suiteName + "  "
+        return suiteName
 
     def start_test(self, name, attributes):
         suiteNames = attributes.get("longname").split(".")
         suiteNames.pop()
         suiteKey = ".".join(suiteNames)
 
-        if not self.suites.get(suiteKey):
-            startedSuites = asyncio.run(
-                self.client.startSuite(self.testRunUUID, suiteNames)
-            )
-            for suite in startedSuites:
-                self.suites[".".join(suiteNames)] = suite
-                suiteNames.pop()
-
         suiteUUID = self.suites.get(suiteKey)
 
-        testUUID = asyncio.run(
-            self.client.startTest(self.testRunUUID, suiteUUID, name, TestType.TEST)
+        template = attributes.get("template")
+        tags = attributes.get("tags")
+
+        orangebeardAttrs = []
+
+        if len(template) > 0 or len(tags) > 0:
+            if len(template) > 0:
+                orangebeardAttrs.append(Attribute("template", template))
+            if len(tags) > 0:
+                for tag in tags:
+                    orangebeardAttrs.append(Attribute(value=tag))
+
+        testUUID = self.eventloop.run_until_complete(
+            self.client.startTest(
+                self.testRunUUID,
+                suiteUUID,
+                name,
+                TestType.TEST,
+                attributes=orangebeardAttrs if len(orangebeardAttrs) > 0 else None,
+                description=attributes.get("doc"),
+                startTime=datetime.now(tz),
+            )
         )
         self.tests[attributes.get("id")] = testUUID
 
@@ -81,28 +118,112 @@ class listener:
         message = attributes.get("message")
         if len(message) > 0:
             level = LogLevel.INFO if status == TestStatus.PASSED else LogLevel.ERROR
-            asyncio.run(self.client.log(self.testRunUUID, testUUID, level, message))
-        asyncio.run(self.client.finishTest(testUUID, self.testRunUUID, status))
+            self.eventloop.run_until_complete(
+                self.client.log(self.testRunUUID, testUUID, level, message)
+            )
+        self.eventloop.run_until_complete(
+            self.client.finishTest(
+                testUUID, self.testRunUUID, status, endTime=datetime.now(tz)
+            )
+        )
         self.tests.pop(attributes.get("id"))
 
     def start_keyword(self, name, attributes):
-        testUUID = list(self.tests.values())[-1]
+        testUUID = list(self.tests.values())[-1] if len(self.tests) else None
         parentStepUUID = self.steps[-1] if len(self.steps) > 0 else None
 
-        stepUUID = asyncio.run(
-            self.client.startStep(
-                self.testRunUUID, testUUID, attributes.get("kwname"), parentStepUUID
-            )
-        )
+        if testUUID is None:
+            # start suite keyword (setup) as a virtual test (BEFORE_TEST)
+            kwHash = hashlib.md5(
+                (
+                    name
+                    + json.dumps(attributes.get("args"), sort_keys=True)
+                ).encode("utf-8")
+            ).hexdigest()
+            
+            stepTypePrefix = attributes.get("type")
+            beforeStepName = "{0}: {1}".format(stepTypePrefix.capitalize(), attributes.get("kwname"))
 
-        self.steps.append(stepUUID)
+            suiteUUID = list(self.suites.values())[-1]
+            testUUID = self.eventloop.run_until_complete(
+                self.client.startTest(
+                    self.testRunUUID,
+                    suiteUUID,
+                    beforeStepName,
+                    TestType.BEFORE,
+                    attributes=None,
+                    description=attributes.get("doc"),
+                    startTime=datetime.now(tz),
+                )
+            )
+            self.tests[kwHash] = testUUID
+
+        else:
+            stepName = (
+                attributes.get("kwname")
+                if len(attributes.get("kwname")) > 0
+                else attributes.get("type")
+            )
+            stepTypePrefix = attributes.get("type")
+            stepArgs = attributes.get("args")
+
+            stepDisplayName = (
+                "{0}: {1} ({2})".format(
+                    stepTypePrefix.capitalize(), stepName, ", ".join(stepArgs)
+                )
+                if len(stepArgs) > 0
+                else "{0}: {1}".format(stepTypePrefix.capitalize(), stepName)
+            )
+
+            # omit args if too long (TODO: log them separately)
+            if len(stepDisplayName) > 128:
+                stepDisplayName = "{0}: {1}".format(
+                    stepTypePrefix.capitalize(), stepName
+                )
+
+            stepUUID = self.eventloop.run_until_complete(
+                self.client.startStep(
+                    self.testRunUUID,
+                    testUUID,
+                    stepDisplayName,
+                    parentStepUUID,
+                    description=attributes.get("doc"),
+                    startTime=datetime.now(tz),
+                )
+            )
+            self.steps.append(stepUUID)
 
     def end_keyword(self, name, attributes):
-        stepUUID = self.steps[-1]
-        status = get_status(attributes.get("status"))
+        stepUUID = self.steps[-1] if len(self.steps) > 0 else None
 
-        asyncio.run(self.client.finishStep(stepUUID, self.testRunUUID, status))
-        self.steps.pop()
+        if stepUUID is None:
+            # Was a suite setup step wrapped in test item
+            kwHash = hashlib.md5(
+                (
+                    name
+                    + json.dumps(attributes.get("args"), sort_keys=True)
+                ).encode("utf-8")
+            ).hexdigest()
+
+            testUUID = self.tests.get(kwHash)
+            status = get_status(attributes.get("status"))
+
+            self.eventloop.run_until_complete(
+                self.client.finishTest(
+                    testUUID, self.testRunUUID, status, endTime=datetime.now(tz)
+                )
+            )
+            self.tests.pop(kwHash)
+
+        else:
+            status = get_status(attributes.get("status"))
+
+            self.eventloop.run_until_complete(
+                self.client.finishStep(
+                    stepUUID, self.testRunUUID, status, endTime=datetime.now(tz)
+                )
+            )
+            self.steps.pop()
 
     def log_message(self, message):
         stepUUID = self.steps[-1] if len(self.steps) > 0 else None
@@ -112,12 +233,17 @@ class listener:
         level = get_level(message["level"])
         logMsg = message["message"]
 
-        if message["html"] is "yes":
+        if message["html"] == "yes":
             images = re.findall('src="(.+?)"', logMsg)
             if len(images) > 0:
-                logUUID = asyncio.run(
+                logUUID = self.eventloop.run_until_complete(
                     self.client.log(
-                        self.testRunUUID, testUUID, level, images[0], stepUUID
+                        self.testRunUUID,
+                        testUUID,
+                        level,
+                        images[0],
+                        stepUUID,
+                        logTime=datetime.now(tz),
                     )
                 )
 
@@ -128,40 +254,33 @@ class listener:
                     ).read(),
                 )
                 attachmentMeta = AttachmentMetaData(
-                    self.testRunUUID, testUUID, logUUID, stepUUID
+                    self.testRunUUID,
+                    testUUID,
+                    logUUID,
+                    stepUUID,
+                    attachmentTime=datetime.now(tz),
                 )
-                asyncio.run(self.client.logAttachment(attachmentFile, attachmentMeta))
+                self.eventloop.run_until_complete(
+                    self.client.logAttachment(attachmentFile, attachmentMeta)
+                )
             else:
-                asyncio.run(
+                self.eventloop.run_until_complete(
                     self.client.log(
                         self.testRunUUID,
                         testUUID,
                         level,
                         logMsg,
                         stepUUID,
-                        LogFormat.HTML,
+                        logFormat=LogFormat.HTML,
                     )
                 )
         else:
-            asyncio.run(
+            self.eventloop.run_until_complete(
                 self.client.log(self.testRunUUID, testUUID, level, logMsg, stepUUID)
             )
 
-    # #def message(self, message):
-    #     ## Send log
-    #     #print("SysLog: {0}".format(message))
-
-    # def output_file(self, path):
-    #     ## attach file to last log
-    #     print("OutFile: {0}".format(path))
-
-    # def log_file(self, path):
-    #     ## attach file to log?
-    #     print("LogFile: {0}".format(path))
-
     def close(self):
-        asyncio.run(self.client.finishTestRun(self.testRunUUID))
-        self.eventLoop.close()
+        self.eventloop.run_until_complete(self.client.finishTestRun(self.testRunUUID))
 
     def startTestRunIfNeeded(self):
         if not hasattr(self, "testRunUUID"):
@@ -178,6 +297,10 @@ class listener:
             )
 
             ##start test run
-            self.testRunUUID = asyncio.run(
-                self.client.startTestrun(self.testset, description=self.description)
+            self.testRunUUID = self.eventloop.run_until_complete(
+                self.client.startTestrun(
+                    self.testset,
+                    startTime=datetime.now(tz),
+                    description=self.description,
+                )
             )

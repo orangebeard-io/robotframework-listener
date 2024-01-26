@@ -10,7 +10,8 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
+../dist/
+listener/dist/
 downloads/
 eggs/
 .eggs/
@@ -51,6 +52,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 .idea/
+../.idea/
 
 # Translations
 *.mo

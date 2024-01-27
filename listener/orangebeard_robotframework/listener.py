@@ -1,10 +1,7 @@
-import asyncio
 import os
-import platform
 import re
 import hashlib
 import json
-import uuid
 from copy import copy
 
 from datetime import datetime
@@ -66,6 +63,10 @@ def pad_suite_name(suite_name) -> str:
     return suite_name
 
 
+def truncate_description(description: str) -> str:
+    return description[:1020] + "..." if description is not None and len(description) > 1024 else description
+
+
 class listener(ListenerV2):
     def __init__(self):
         self.endpoint = None
@@ -90,7 +91,8 @@ class listener(ListenerV2):
         suite_names = list(map(pad_suite_name, suite_key.split(".")))
 
         if not self.suites.get(suite_key):
-            start_suite_obj = StartSuite(self.test_run_uuid, copy(suite_names), description=attributes.get('doc'))
+            start_suite_obj = StartSuite(self.test_run_uuid, copy(suite_names),
+                                         description=truncate_description(attributes.get('doc')))
 
             started_suites = self.orangebeard_client.start_suite(start_suite_obj)
             started_suites.reverse()
@@ -125,7 +127,7 @@ class listener(ListenerV2):
                 name,
                 datetime.now(tz),
                 TestType.TEST,
-                description=attributes.get("doc"),
+                description=truncate_description(attributes.get("doc")),
                 attributes=orangebeard_attributes if len(orangebeard_attributes) > 0 else None
             )
         )
@@ -176,7 +178,7 @@ class listener(ListenerV2):
                     before_step_name,
                     datetime.now(tz),
                     TestType.BEFORE,
-                    description=attributes.get("doc"),
+                    description=truncate_description(attributes.get("doc")),
                     attributes=None
                 )
             )
@@ -203,8 +205,11 @@ class listener(ListenerV2):
             # omit args if too long
             if len(step_display_name) > 128:
                 step_display_name = "{0}: {1}".format(
-                    step_type_prefix.capitalize(), step_name
+                    step_type_prefix.capitalize(), " ".join(step_name.split())
                 )
+                if len(step_display_name) > 128:
+                    step_display_name = "{0}...".format(step_display_name[:125])
+
                 description = ", ".join(step_args)
 
             step_uuid = self.orangebeard_client.start_step(
@@ -214,7 +219,7 @@ class listener(ListenerV2):
                     step_display_name,
                     datetime.now(tz),
                     parent_step_uuid,
-                    description
+                    truncate_description(description)
                 )
             )
 
@@ -246,7 +251,7 @@ class listener(ListenerV2):
     def log_message(self, message):
         step_uuid = self.steps[-1] if len(self.steps) > 0 else None
 
-        test_uuid = test_uuid = list(self.tests.values())[-1]
+        test_uuid = list(self.tests.values())[-1]
 
         level = get_level(message["level"])
         log_msg = message["message"]

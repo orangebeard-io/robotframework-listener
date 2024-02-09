@@ -201,6 +201,8 @@ class listener(ListenerV2):
                 if len(step_args) > 0
                 else "{0}: {1}".format(step_type_prefix.capitalize(), step_name)
             )
+            if step_type_prefix.lower() == "keyword":
+                step_display_name = step_display_name[9:]
 
             # omit args if too long
             if len(step_display_name) > 128:

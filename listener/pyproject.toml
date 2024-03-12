@@ -1,26 +1,19 @@
 [build-system]
-requires = ["setuptools>=67.0"]
+requires = [ "setuptools>=67.0",]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "orangebeard-robotframework"
-version = "2.0.7"
-authors = [
-    { name = "Tom Heintzberger", email = "tom@orangebeard.io" },
-]
+version = "2.1.0"
 description = "A robotframework listener for Orangebeard"
 readme = "README.MD"
 requires-python = ">=3.7"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
-    "Operating System :: OS Independent",
-]
-dependencies = [
-    "robotframework>=6.1.1",
-    "orangebeard-client>=2.1.1"
-]
+classifiers = [ "Programming Language :: Python :: 3", "License :: OSI Approved :: GNU Affero General Public License v3", "Operating System :: OS Independent",]
+dependencies = [ "robotframework>=6.1.1", "orangebeard-client>=2.1.1",]
+[[project.authors]]
+name = "Tom Heintzberger"
+email = "tom@orangebeard.io"
 
 [project.urls]
-"Homepage" = "https://github.com/orangebeard-io/robotframework-listener"
+Homepage = "https://github.com/orangebeard-io/robotframework-listener"
 "Bug Tracker" = "https://github.com/orangebeard-io/robotframework-listener/issues"

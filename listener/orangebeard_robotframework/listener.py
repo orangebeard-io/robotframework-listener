@@ -7,6 +7,7 @@ from copy import copy
 from datetime import datetime
 
 from orangebeard.OrangebeardClient import OrangebeardClient
+from orangebeard.config import AutoConfig
 from orangebeard.entity.Attachment import AttachmentFile, AttachmentMetaData, Attachment
 from orangebeard.entity.Attribute import Attribute
 from orangebeard.entity.FinishStep import FinishStep
@@ -69,12 +70,6 @@ def truncate_description(description: str) -> str:
 
 class listener(ListenerV2):
     def __init__(self):
-        self.endpoint = None
-        self.endpoint = None
-        self.accessToken = None
-        self.project = None
-        self.test_set = None
-        self.description = None
         self.output_dir = None
         self.orangebeard_client = None
         self.test_run_uuid = None
@@ -316,19 +311,22 @@ class listener(ListenerV2):
             )
 
     def start_test_run(self):
-        self.endpoint = get_variable("orangebeard_endpoint")
-        self.accessToken = get_variable("orangebeard_accesstoken")
-        self.project = get_variable("orangebeard_project")
-        self.test_set = get_variable("orangebeard_testset")
-        self.description = get_variable("orangebeard_description")
-        self.output_dir = get_variable("OUTPUT_DIR")
 
-        self.orangebeard_client = OrangebeardClient(
-            self.endpoint, self.accessToken, self.project
-        )
+        config = AutoConfig.config
+
+        config.endpoint = get_variable("orangebeard_endpoint", config.endpoint)
+        config.token = get_variable("orangebeard_accesstoken", config.token)
+        config.project = get_variable("orangebeard_project", config.project)
+        config.test_set = get_variable("orangebeard_testset", config.testset)
+        config.description = get_variable("orangebeard_description", config.description)
+
+        self.output_dir = get_variable("OUTPUT_DIR")
+        self.orangebeard_client = OrangebeardClient(orangebeard_config=config)
+
+        print(config.to_json())
 
         self.test_run_uuid = self.orangebeard_client.start_test_run(
-            StartTestRun(self.test_set, datetime.now(tz), self.description))
+            StartTestRun(config.test_set, datetime.now(tz), config.description))
 
     def close(self):
         self.orangebeard_client.finish_test_run(self.test_run_uuid, FinishTestRun(datetime.now(tz)))

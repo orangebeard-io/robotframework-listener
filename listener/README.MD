@@ -39,9 +39,49 @@ Run your tests as usual with the listener registered:
 robot \
 --listener orangebeard.listener \
 --variable orangebeard_endpoint:"https://my-instance.orangebeard-staging.app" \
---variable orangebeard_accesstoken:"your-orangbeard-access-token"  \
+--variable orangebeard_accesstoken:"your-orangebeard-access-token"  \
 --variable orangebeard_project:"project_name" \
 --variable orangebeard_testset:"Testset name" \
 ./tests
 ```
 
+Or, provide the configuration as a json file (called orangebeard.json) in the working directory or up in the directory structure:
+
+```json [orangebeard.json]
+{
+  "endpoint": "https://my-instance.orangebeard.app",
+  "token": "your-orangebeard-access-token",
+  "project": "project_name",
+  "testset": "RobotFramework Tests",
+  "description": "A run from robot framework",
+  "attributes": [
+    {
+      "key": "Key 1",
+      "value": "Some value"
+    },
+    {
+      "value": "Tag value"
+    }
+  ],
+  "ref_url": "https://link.to.my/build-server"
+}
+```
+
+Or using environment variables:
+```bash
+export ORANGEBEARD_ENDPOINT=https://my-instance.orangebeard.app
+export ORANGEBEARD_TOKEN=your-orangebeard-access-token
+export ORANGEBEARD_TESTSET="RobotFramework Tests"
+export ORANGEBEARD_PROJECT=project_name
+export ORANGEBEARD_DESCRIPTION="A run from robot framework"
+export ORANGEBEARD_ATTRIBUTES="key1:some value;Tag value"
+export ORANGEBEARD_REF_URL=https://link.to.my/build-server
+```
+
+Configuration is applied in the following order:
+1. Json file configuration is read
+2. Configuration parameters are enriched/overwritten from environment variables
+3. Configuration parameters are enriched/overwritten from listener variables
+  
+This way, configuration can be provided using a combination ove the beforementioned methods. i.e. setting endpoint and
+project from json, and providing token, test set name, etc from environment and/or listener command variables.

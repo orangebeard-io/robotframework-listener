@@ -1,0 +1,111 @@
+name: release to PyPi
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    outputs:
+      releaseVersion: ${{ steps.exposeVersion.outputs.releaseVersion }}
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Bump version
+      uses: apowis/pyproject-bump-version@v0.0.1
+      with:
+        file_to_bump: "./listener/pyproject.toml"
+        bump_type: "minor"
+        main_branch: "main"
+        python_version: "3.10"
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+    - name: Install pypa/build
+      run: >-
+        python3 -m
+        pip install
+        build
+        --user
+    - name: Build a binary wheel and a source tarball
+      run: python3 -m build
+    - name: Store the distribution packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: listener/dist/
+    - name: Get version from pyproject.toml
+      uses: maybe-hello-world/pyproject-check-version@v4
+      id: versioncheck
+      with:
+        pyproject-path: "./pyproject.toml"
+    - name: save version to output
+      id: exposeVersion
+      run: echo "releaseVersion=${{ steps.versioncheck.outputs.local_version }}" >> $GITHUB_OUTPUT
+
+  publish-to-pypi:
+    name: >-
+      Publish Python 🐍 distribution 📦 to PyPI
+    needs:
+    - build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/orangebeard-robotframework
+    permissions:
+      id-token: write
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: listener/dist/
+      - name: Publish distribution 📦 to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: >-
+      Sign the Python 🐍 distribution 📦 with Sigstore
+      and upload them to GitHub Release
+    needs:
+      - publish-to-pypi
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # IMPORTANT: mandatory for making GitHub Releases
+      id-token: write  # IMPORTANT: mandatory for sigstore
+
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: listener/dist/
+      - name: Sign the dists with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v1.2.3
+        with:
+          inputs: >-
+            ./listener/dist/*.tar.gz
+            ./listener/dist/*.whl
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create
+          '${{ needs.build.outputs.releaseVersion }}'
+          --repo '${{ github.repository }}'
+          --notes ""
+      - name: Upload artifact signatures to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        # Upload to GitHub Release using the `gh` CLI.
+        # `listener/dist/` contains the built packages, and the
+        # sigstore-produced signatures and certificates.
+        run: >-
+          gh release upload
+          '${{ needs.build.outputs.releaseVersion }}' listener/dist/**
+          --repo '${{ github.repository }}'

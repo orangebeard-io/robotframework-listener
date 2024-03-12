@@ -32,6 +32,7 @@ jobs:
         build
         --user
     - name: Build a binary wheel and a source tarball
+      working-directory: ./listener
       run: python3 -m build
     - name: Store the distribution packages
       uses: actions/upload-artifact@v4

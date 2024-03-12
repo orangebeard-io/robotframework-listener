@@ -43,7 +43,7 @@ jobs:
       uses: maybe-hello-world/pyproject-check-version@v4
       id: versioncheck
       with:
-        pyproject-path: "./pyproject.toml"
+        pyproject-path: "./listener/pyproject.toml"
     - name: save version to output
       id: exposeVersion
       run: echo "releaseVersion=${{ steps.versioncheck.outputs.local_version }}" >> $GITHUB_OUTPUT

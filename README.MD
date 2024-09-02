@@ -37,7 +37,7 @@
 Run your tests as usual with the listener registered:
 ```
 robot \
---listener orangebeard.listener \
+--listener orangebeard_robotframework.listener \
 --variable orangebeard_endpoint:"https://my-instance.orangebeard-staging.app" \
 --variable orangebeard_accesstoken:"your-orangebeard-access-token"  \
 --variable orangebeard_project:"project_name" \

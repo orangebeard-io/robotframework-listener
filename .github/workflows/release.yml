@@ -32,6 +32,7 @@ jobs:
         build
         --user
     - name: Build a binary wheel and a source tarball
+      working-directory: ./listener
       run: python3 -m build
     - name: Store the distribution packages
       uses: actions/upload-artifact@v4
@@ -42,7 +43,7 @@ jobs:
       uses: maybe-hello-world/pyproject-check-version@v4
       id: versioncheck
       with:
-        pyproject-path: "./pyproject.toml"
+        pyproject-path: "./listener/pyproject.toml"
     - name: save version to output
       id: exposeVersion
       run: echo "releaseVersion=${{ steps.versioncheck.outputs.local_version }}" >> $GITHUB_OUTPUT

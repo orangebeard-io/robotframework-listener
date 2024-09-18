@@ -323,7 +323,7 @@ class listener(ListenerV2):
         self.output_dir = get_variable("OUTPUT_DIR")
         self.orangebeard_client = OrangebeardClient(orangebeard_config=config)
 
-        print(config.to_json())
+        print("Orangebeard configured: \nEndpoint: " + config.endpoint + "\nProject: " + config.project + "\nTest Set: " + config.test_set + "\nDescription: " + config.description)
 
         self.test_run_uuid = self.orangebeard_client.start_test_run(
             StartTestRun(config.test_set, datetime.now(tz), config.description))

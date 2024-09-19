@@ -7,7 +7,7 @@ Suite Setup    Authenticate as Admin
 *** Test Cases ***
 Get Bookings from Restful Booker
     ${now}=    Get Current Date
-    ${start_date}=      Subtract Time From Date   ${now}     40 days    result_format=%Y-%m-%d
+    ${start_date}=      Subtract Time From Date   ${now}     7 days    result_format=%Y-%m-%d
     ${response}    GET    https://restful-booker.herokuapp.com/booking    params=checkin=${start_date}
     Status Should Be    200
     Log List    ${response.json()}

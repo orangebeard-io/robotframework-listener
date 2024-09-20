@@ -45,7 +45,7 @@ robot \
 ./tests
 ```
 
-Or, provide the configuration as a json file (called orangebeard.json) in the working directory or up in the directory structure:
+Optionally, you can provide the configuration parameters from a json file (called orangebeard.json) in the working directory or up in the directory structure:
 
 ```json [orangebeard.json]
 {
@@ -78,6 +78,8 @@ export ORANGEBEARD_ATTRIBUTES="key1:some value;Tag value"
 export ORANGEBEARD_REF_URL=https://link.to.my/build-server
 ```
 
+Note that the `--listener orangebeard_robotframework.listener ` argument should always be provided to robotframework to register the listener.
+
 Configuration is applied in the following order:
 1. Json file configuration is read
 2. Configuration parameters are enriched/overwritten from environment variables
@@ -85,3 +87,21 @@ Configuration is applied in the following order:
   
 This way, configuration can be provided using a combination ove the beforementioned methods. i.e. setting endpoint and
 project from json, and providing token, test set name, etc from environment and/or listener command variables.
+
+## Parallel test reporting with pabot
+When using parallellization tools like pabot, the Orangebeard run should be started before the runners start and finished
+after full completion, otherwise every thread will report its own Orangebeard run. This can be achieved using the
+orangebeard client's CLI utility.
+Example:
+
+```shell
+#!/bin/bash
+testrunUuid=$(orangebeard-cli -x start)
+pabot --listener orangebeard_robotframework.listener  --variable orangebeard_testrun:"$testrunUuid" --console verbose .
+orangebeard-cli -x finish -id $testrunUuid
+```
+
+This will start the run in Orangebeard (using json or environment autoconfig) and get the run's UUID in a variable. Then
+start the test run and finish the run upon process completion.
+
+For more CLI configuration options, see https://github.com/orangebeard-io/python-client?tab=readme-ov-file#cli or run `orangebeard-cli -h`

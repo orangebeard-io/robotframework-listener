@@ -319,14 +319,19 @@ class listener(ListenerV2):
         config.project = get_variable("orangebeard_project", config.project)
         config.test_set = get_variable("orangebeard_testset", config.testset)
         config.description = get_variable("orangebeard_description", config.description)
+        config.testrun_uuid = get_variable("orangebeard_testrun", config.testrun_uuid)
 
         self.output_dir = get_variable("OUTPUT_DIR")
         self.orangebeard_client = OrangebeardClient(orangebeard_config=config)
 
         print("Orangebeard configured: \nEndpoint: " + config.endpoint + "\nProject: " + config.project + "\nTest Set: " + config.test_set + "\nDescription: " + config.description)
+        if config.testrun_uuid is None:
+            self.test_run_uuid = self.orangebeard_client.start_test_run(
+                StartTestRun(config.test_set, datetime.now(tz), config.description))
+        else:
+            self.test_run_uuid = config.testrun_uuid
+            print("Reporting to test run: " + config.testrun_uuid)
 
-        self.test_run_uuid = self.orangebeard_client.start_test_run(
-            StartTestRun(config.test_set, datetime.now(tz), config.description))
 
     def close(self):
         self.orangebeard_client.finish_test_run(self.test_run_uuid, FinishTestRun(datetime.now(tz)))

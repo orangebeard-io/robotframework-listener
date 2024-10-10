@@ -252,9 +252,10 @@ class listener(ListenerV2):
 
         level = get_level(message["level"])
         log_msg = message["message"]
+        images = re.findall('src="(.+?)"', log_msg)
+        files = re.findall(r'file://\"?(\S*?)[\s\"]', log_msg)
 
-        if message["html"] == "yes":
-            images = re.findall('src="(.+?)"', log_msg)
+        if len(images) > 0 or len(files) > 0:
             if len(images) > 0:
                 log_uuid = self.orangebeard_client.log(
                     Log(
@@ -267,25 +268,10 @@ class listener(ListenerV2):
                         datetime.now(tz),
                     )
                 )
+                self.send_attachment(images[0], log_uuid, test_uuid, step_uuid)
 
-                attachment_file = AttachmentFile(
-                    images[0],
-                    open(
-                        "{0}{1}{2}".format(self.output_dir, os.path.sep, images[0]), "rb"
-                    ).read(),
-                )
-                attachment_meta_data = AttachmentMetaData(
-                    self.test_run_uuid,
-                    test_uuid,
-                    log_uuid,
-                    step_uuid,
-                    datetime.now(tz),
-                )
-
-                self.orangebeard_client.send_attachment(Attachment(attachment_file, attachment_meta_data))
-
-            else:
-                self.orangebeard_client.log(
+            if len(files) > 0:
+                log_uuid = self.orangebeard_client.log(
                     Log(
                         self.test_run_uuid,
                         test_uuid,
@@ -293,9 +279,10 @@ class listener(ListenerV2):
                         level,
                         LogFormat.PLAIN_TEXT,
                         step_uuid,
-                        datetime.now(tz)
+                        datetime.now(tz),
                     )
                 )
+                self.send_attachment(files[0], log_uuid, test_uuid, step_uuid)
 
         else:
             self.orangebeard_client.log(
@@ -306,12 +293,35 @@ class listener(ListenerV2):
                     level,
                     LogFormat.PLAIN_TEXT,
                     step_uuid,
-                    datetime.now(tz)
+                    datetime.now(tz),
                 )
             )
 
-    def start_test_run(self):
+    def send_attachment(self, attachment_path, log_uuid, test_uuid, step_uuid=None):
+        attachment_path = re.sub(r'/?([A-Za-z]:)', r'\1', attachment_path)
+        abs_attachment_path = attachment_path if os.path.isabs(attachment_path) else\
+            "{0}{1}{2}".format(self.output_dir,
+                                os.path.sep,
+                                os.path.normpath(attachment_path))
 
+        attachment_file = AttachmentFile(
+            os.path.basename(abs_attachment_path),
+            open(
+                abs_attachment_path, "rb"
+            ).read(),
+        )
+        attachment_meta_data = AttachmentMetaData(
+            self.test_run_uuid,
+            test_uuid,
+            log_uuid,
+            step_uuid,
+            datetime.now(tz),
+        )
+
+        self.orangebeard_client.send_attachment(Attachment(attachment_file, attachment_meta_data))
+
+
+    def start_test_run(self):
         config = AutoConfig.config
 
         config.endpoint = get_variable("orangebeard_endpoint", config.endpoint)
@@ -324,10 +334,11 @@ class listener(ListenerV2):
         self.output_dir = get_variable("OUTPUT_DIR")
         self.orangebeard_client = OrangebeardClient(orangebeard_config=config)
 
-        print("Orangebeard configured: \nEndpoint: " + config.endpoint + "\nProject: " + config.project + "\nTest Set: " + config.test_set + "\nDescription: " + config.description)
+        print(
+            "Orangebeard configured: \nEndpoint: " + config.endpoint + "\nProject: " + config.project + "\nTest Set: " + config.test_set + "\nDescription: " + config.description)
         if config.testrun_uuid is None:
             self.test_run_uuid = self.orangebeard_client.start_test_run(
-                StartTestRun(config.test_set, datetime.now(tz), config.description))
+                StartTestRun(config.test_set, datetime.now(tz), config.description, config.attributes))
         else:
             self.test_run_uuid = config.testrun_uuid
             print("Reporting to test run: " + config.testrun_uuid)

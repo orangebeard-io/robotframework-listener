@@ -327,7 +327,7 @@ class listener(ListenerV2):
         config.endpoint = get_variable("orangebeard_endpoint", config.endpoint)
         config.token = get_variable("orangebeard_accesstoken", config.token)
         config.project = get_variable("orangebeard_project", config.project)
-        config.test_set = get_variable("orangebeard_testset", config.testset)
+        config.test_set = get_variable("orangebeard_testset", config.testset) or ''
         config.description = get_variable("orangebeard_description", config.description)
         config.testrun_uuid = get_variable("orangebeard_testrun", config.testrun_uuid)
 

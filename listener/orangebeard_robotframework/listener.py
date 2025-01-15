@@ -58,6 +58,15 @@ def get_level(level_str) -> LogLevel:
         raise ValueError("Unknown level: {0}".format(level_str))
 
 
+def should_log(level: str, min_level: str) -> bool:
+    log_levels = ["DEBUG", "INFO", "WARN", "ERROR"]
+
+    if level not in log_levels or min_level not in log_levels:
+        raise ValueError("Unknown log level: {0} / {1}".format(level, min_level))
+
+    return log_levels.index(level) >= log_levels.index(min_level)
+
+
 def pad_suite_name(suite_name) -> str:
     if len(suite_name) < 3:
         return suite_name + "  "
@@ -73,6 +82,8 @@ class listener(ListenerV2):
         self.output_dir = None
         self.orangebeard_client = None
         self.test_run_uuid = None
+
+        self.loglevel = None
 
         self.suites = {}
         self.tests = {}
@@ -246,11 +257,14 @@ class listener(ListenerV2):
             self.steps.pop()
 
     def log_message(self, message):
-        step_uuid = self.steps[-1] if len(self.steps) > 0 else None
+        level = get_level(message["level"])
+        if not should_log(level, self.loglevel):
+            return
 
+        step_uuid = self.steps[-1] if len(self.steps) > 0 else None
         test_uuid = list(self.tests.values())[-1]
 
-        level = get_level(message["level"])
+
         log_msg = message["message"]
         images = re.findall('src="(.+?)"', log_msg)
         files = re.findall(r'file://\"?(\S*?)[\s\"]', log_msg)
@@ -299,10 +313,10 @@ class listener(ListenerV2):
 
     def send_attachment(self, attachment_path, log_uuid, test_uuid, step_uuid=None):
         attachment_path = re.sub(r'/?([A-Za-z]:)', r'\1', attachment_path)
-        abs_attachment_path = attachment_path if os.path.isabs(attachment_path) else\
+        abs_attachment_path = attachment_path if os.path.isabs(attachment_path) else \
             "{0}{1}{2}".format(self.output_dir,
-                                os.path.sep,
-                                os.path.normpath(attachment_path))
+                               os.path.sep,
+                               os.path.normpath(attachment_path))
 
         attachment_file = AttachmentFile(
             os.path.basename(abs_attachment_path),
@@ -320,7 +334,6 @@ class listener(ListenerV2):
 
         self.orangebeard_client.send_attachment(Attachment(attachment_file, attachment_meta_data))
 
-
     def start_test_run(self):
         config = AutoConfig.config
 
@@ -331,18 +344,19 @@ class listener(ListenerV2):
         config.description = get_variable("orangebeard_description", config.description)
         config.testrun_uuid = get_variable("orangebeard_testrun", config.testrun_uuid)
 
+        self.loglevel = get_variable("orangebeard_loglevel", "INFO")
+
         self.output_dir = get_variable("OUTPUT_DIR")
         self.orangebeard_client = OrangebeardClient(orangebeard_config=config)
 
         print(
-            "Orangebeard configured: \nEndpoint: " + config.endpoint + "\nProject: " + config.project + "\nTest Set: " + config.test_set + "\nDescription: " + config.description)
+            "Orangebeard configured: \nEndpoint: " + config.endpoint + "\nProject: " + config.project + "\nTest Set: " + config.test_set + "\nDescription: " + config.description + "\nLog Level: " + self.loglevel)
         if config.testrun_uuid is None:
             self.test_run_uuid = self.orangebeard_client.start_test_run(
                 StartTestRun(config.test_set, datetime.now(tz), config.description, config.attributes))
         else:
             self.test_run_uuid = config.testrun_uuid
             print("Reporting to test run: " + config.testrun_uuid)
-
 
     def close(self):
         self.orangebeard_client.finish_test_run(self.test_run_uuid, FinishTestRun(datetime.now(tz)))

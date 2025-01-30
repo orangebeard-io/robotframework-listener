@@ -2,4 +2,5 @@ robotframework
 robotframework-seleniumlibrary
 robotframework-requests
 robotframework-browser
+robotframework-pabot
 orangebeard-robotframework

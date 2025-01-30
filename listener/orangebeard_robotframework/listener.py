@@ -261,9 +261,12 @@ class listener(ListenerV2):
         if not should_log(level, self.loglevel):
             return
 
-        step_uuid = self.steps[-1] if len(self.steps) > 0 else None
-        test_uuid = list(self.tests.values())[-1]
+        test_uuid = list(self.tests.values())[-1] if len(self.tests) else None
 
+        if test_uuid is None:
+            return
+
+        step_uuid = self.steps[-1] if len(self.steps) > 0 else None
 
         log_msg = message["message"]
         images = re.findall('src="(.+?)"', log_msg)
@@ -318,12 +321,20 @@ class listener(ListenerV2):
                                os.path.sep,
                                os.path.normpath(attachment_path))
 
-        attachment_file = AttachmentFile(
-            os.path.basename(abs_attachment_path),
-            open(
-                abs_attachment_path, "rb"
-            ).read(),
-        )
+        if not os.path.exists(abs_attachment_path):
+            print(f"File '{abs_attachment_path}' not found. If you use pabot, configure --artifacts and/or --artifactsinsubfolders")
+            return
+
+        try:
+            with open(abs_attachment_path, "rb") as file:
+                attachment_file = AttachmentFile(os.path.basename(abs_attachment_path), file.read())
+        except FileNotFoundError:
+            print(f"File '{abs_attachment_path}' not found.")
+            return
+        except IOError as e:
+            print(f"Error reading file '{abs_attachment_path}': {e}")
+            return
+
         attachment_meta_data = AttachmentMetaData(
             self.test_run_uuid,
             test_uuid,
@@ -343,6 +354,10 @@ class listener(ListenerV2):
         config.test_set = get_variable("orangebeard_testset", config.testset) or ''
         config.description = get_variable("orangebeard_description", config.description)
         config.testrun_uuid = get_variable("orangebeard_testrun", config.testrun_uuid)
+
+        attributes_arg = get_variable("orangebeard_attributes", None)
+        if attributes_arg is not None:
+            config.attributes = config.attributes + AutoConfig.get_attributes_from_string(attributes_arg)
 
         self.loglevel = get_variable("orangebeard_loglevel", "INFO")
 

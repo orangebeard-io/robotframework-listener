@@ -89,8 +89,6 @@ class listener(ListenerV2):
         self.tests = {}
         self.steps = []
 
-
-
     def start_suite(self, name, attributes):
         if attributes['id'] == 's1':
             self.start_test_run()
@@ -324,7 +322,8 @@ class listener(ListenerV2):
                                os.path.normpath(attachment_path))
 
         if not os.path.exists(abs_attachment_path):
-            print(f"File '{abs_attachment_path}' not found. If you use pabot, configure --artifacts and/or --artifactsinsubfolders")
+            print(
+                f"File '{abs_attachment_path}' not found. If you use pabot, configure --artifacts and/or --artifactsinsubfolders")
             return
 
         try:
@@ -348,6 +347,24 @@ class listener(ListenerV2):
         self.orangebeard_client.send_attachment(Attachment(attachment_file, attachment_meta_data))
 
     def start_test_run(self):
+        config = self.setup_configuration()
+        is_pabot_run: bool = get_variable("PABOTLIBURI", None) is not None
+
+        print(
+            "Orangebeard configured: \nEndpoint: " + config.endpoint + "\nProject: " + config.project + "\nTest Set: " + config.test_set + "\nDescription: " + config.description + "\nLog Level: " + self.loglevel)
+
+        if config.testrun_uuid is None:
+            if is_pabot_run:
+                print(
+                    "WARNING: Detected a Pabot run without a test run uuid! This will result in separate executor runs in Orangebeard.")
+
+            self.test_run_uuid = self.orangebeard_client.start_test_run(
+                StartTestRun(config.test_set, datetime.now(tz), config.description, config.attributes))
+        else:
+            self.test_run_uuid = config.testrun_uuid
+            print("Reporting to test run: " + config.testrun_uuid)
+
+    def setup_configuration(self):
         config = AutoConfig.config
         config.endpoint = get_variable("orangebeard_endpoint", config.endpoint)
         config.token = get_variable("orangebeard_accesstoken", config.token)
@@ -355,33 +372,16 @@ class listener(ListenerV2):
         config.test_set = get_variable("orangebeard_testset", config.testset) or ''
         config.description = get_variable("orangebeard_description", config.description)
         config.testrun_uuid = get_variable("orangebeard_testrun", config.testrun_uuid)
-
         attributes_arg = get_variable("orangebeard_attributes", None)
-
         if attributes_arg is not None:
             config.attributes = config.attributes.extend(AutoConfig.get_attributes_from_string(attributes_arg))
-
         reference_url = get_variable("orangebeard_reference_url", None)
         if reference_url is not None:
             config.attributes.append(Attribute("reference_url", reference_url))
-
         self.loglevel = get_variable("orangebeard_loglevel", "INFO")
         self.output_dir = get_variable("OUTPUT_DIR")
         self.orangebeard_client = OrangebeardClient(config.endpoint, config.token, config.project)
-
-        is_pabot_run: bool = get_variable("PABOTLIBURI", None) is not None
-
-        print(
-            "Orangebeard configured: \nEndpoint: " + config.endpoint + "\nProject: " + config.project + "\nTest Set: " + config.test_set + "\nDescription: " + config.description + "\nLog Level: " + self.loglevel)
-        if config.testrun_uuid is None:
-            if is_pabot_run:
-                print("WARNING: Detected a Pabot run without a test run uuid! This will result in separate executor runs in Orangebeard.")
-
-            self.test_run_uuid = self.orangebeard_client.start_test_run(
-                StartTestRun(config.test_set, datetime.now(tz), config.description, config.attributes))
-        else:
-            self.test_run_uuid = config.testrun_uuid
-            print("Reporting to test run: " + config.testrun_uuid)
+        return config
 
     def close(self):
         self.orangebeard_client.finish_test_run(self.test_run_uuid, FinishTestRun(datetime.now(tz)))

@@ -43,12 +43,13 @@ robot \
 --variable orangebeard_project:"project_name" \
 --variable orangebeard_testset:"Testset name" \
 --variable orangebeard_loglevel:"INFO" \
+--variable orangebeard_reference_url:"https://orangebeard.io/myref"
 ./tests
 ```
 The loglevel is optional and defaults to INFO. Valid options are DEBUG, INFO, WARN, ERROR.
 DEBUG log level includes TRACE logs from RobotFramework. It can only be set using a RF variable, not from json or environment
 
-Optionally, you can provide the client configuration parameters from a json file (called orangebeard.json) in the working directory or up in the directory structure:
+You can also provide the (partial) configuration parameters from a json file (called orangebeard.json) in the working directory or up in the directory structure:
 
 ```json [orangebeard.json]
 {
@@ -66,7 +67,7 @@ Optionally, you can provide the client configuration parameters from a json file
       "value": "Tag value"
     }
   ],
-  "ref_url": "https://link.to.my/build-server",
+  "referenceUrl": "https://link.to.my/build-server",
   "loglevel": "INFO"
 }
 ```
@@ -93,7 +94,7 @@ This way, configuration can be provided using a combination ove the beforementio
 project from json, and providing token, test set name, etc from environment and/or listener command variables.
 
 ## Parallel test reporting with pabot
-When using parallelization tools like pabot, the Orangebeard run should be started before the runners start and finished
+When using pabot, the Orangebeard run should be started before the runners start and finished
 after full completion, otherwise every thread will report its own Orangebeard run. This can be achieved using the
 orangebeard Python client's CLI utility.
 Example:

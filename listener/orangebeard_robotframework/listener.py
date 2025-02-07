@@ -89,6 +89,8 @@ class listener(ListenerV2):
         self.tests = {}
         self.steps = []
 
+
+
     def start_suite(self, name, attributes):
         if attributes['id'] == 's1':
             self.start_test_run()
@@ -347,7 +349,6 @@ class listener(ListenerV2):
 
     def start_test_run(self):
         config = AutoConfig.config
-
         config.endpoint = get_variable("orangebeard_endpoint", config.endpoint)
         config.token = get_variable("orangebeard_accesstoken", config.token)
         config.project = get_variable("orangebeard_project", config.project)
@@ -356,17 +357,26 @@ class listener(ListenerV2):
         config.testrun_uuid = get_variable("orangebeard_testrun", config.testrun_uuid)
 
         attributes_arg = get_variable("orangebeard_attributes", None)
+
         if attributes_arg is not None:
-            config.attributes = config.attributes + AutoConfig.get_attributes_from_string(attributes_arg)
+            config.attributes = config.attributes.extend(AutoConfig.get_attributes_from_string(attributes_arg))
+
+        reference_url = get_variable("orangebeard_reference_url", None)
+        if reference_url is not None:
+            config.attributes.append(Attribute("reference_url", reference_url))
 
         self.loglevel = get_variable("orangebeard_loglevel", "INFO")
-
         self.output_dir = get_variable("OUTPUT_DIR")
-        self.orangebeard_client = OrangebeardClient(orangebeard_config=config)
+        self.orangebeard_client = OrangebeardClient(config.endpoint, config.token, config.project)
+
+        is_pabot_run: bool = get_variable("PABOTLIBURI", None) is not None
 
         print(
             "Orangebeard configured: \nEndpoint: " + config.endpoint + "\nProject: " + config.project + "\nTest Set: " + config.test_set + "\nDescription: " + config.description + "\nLog Level: " + self.loglevel)
         if config.testrun_uuid is None:
+            if is_pabot_run:
+                print("WARNING: Detected a Pabot run without a test run uuid! This will result in separate executor runs in Orangebeard.")
+
             self.test_run_uuid = self.orangebeard_client.start_test_run(
                 StartTestRun(config.test_set, datetime.now(tz), config.description, config.attributes))
         else:

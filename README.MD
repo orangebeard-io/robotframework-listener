@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="https://github.com/orangebeard-io/robotframework-listener/actions">
-    <img src="https://img.shields.io/github/workflow/status/orangebeard-io/robotframework-listener/release?style=flat-square"
+    <img src="https://img.shields.io/github/actions/workflow/status/orangebeard-io/robotframework-listener/release.yml?style=flat-square"
       alt="Build Status" />
   </a>
   <a href="https://github.com/orangebeard-io/robotframework-listener/blob/master/LICENSE">

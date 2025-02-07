@@ -86,28 +86,21 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: python-package-distributions
-          path: listener/dist/
-      - name: Sign the dists with Sigstore
-        uses: sigstore/gh-action-sigstore-python@v1.2.3
-        with:
-          inputs: >-
-            ./listener/dist/*.tar.gz
-            ./listener/dist/*.whl
+          path: dist/
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: >-
-          gh release create
-          '${{ needs.build.outputs.releaseVersion }}'
+          gh release create ${{ needs.build.outputs.releaseVersion }}
           --repo '${{ github.repository }}'
           --notes ""
       - name: Upload artifact signatures to GitHub Release
         env:
           GITHUB_TOKEN: ${{ github.token }}
         # Upload to GitHub Release using the `gh` CLI.
-        # `listener/dist/` contains the built packages, and the
+        # `dist/` contains the built packages, and the
         # sigstore-produced signatures and certificates.
         run: >-
           gh release upload
-          '${{ needs.build.outputs.releaseVersion }}' listener/dist/**
+          '${{ needs.build.outputs.releaseVersion }}' dist/**
           --repo '${{ github.repository }}'

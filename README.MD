@@ -90,7 +90,7 @@ Configuration is applied in the following order:
 2. Configuration parameters are enriched/overwritten from environment variables
 3. Configuration parameters are enriched/overwritten from listener variables
   
-This way, configuration can be provided using a combination ove the beforementioned methods. i.e. setting endpoint and
+This way, configuration can be provided using a combination of the beforementioned methods. i.e. setting endpoint and
 project from json, and providing token, test set name, etc from environment and/or listener command variables.
 
 ## Parallel test reporting with pabot

@@ -374,13 +374,13 @@ class listener(ListenerV2):
         config.testrun_uuid = get_variable("orangebeard_testrun", config.testrun_uuid)
         attributes_arg = get_variable("orangebeard_attributes", None)
         if attributes_arg is not None:
-            config.attributes = config.attributes.extend(AutoConfig.get_attributes_from_string(attributes_arg))
+            config.attributes.extend(AutoConfig.get_attributes_from_string(attributes_arg))
         reference_url = get_variable("orangebeard_reference_url", None)
         if reference_url is not None:
             config.attributes.append(Attribute("reference_url", reference_url))
         self.loglevel = get_variable("orangebeard_loglevel", "INFO")
         self.output_dir = get_variable("OUTPUT_DIR")
-        self.orangebeard_client = OrangebeardClient(config.endpoint, config.token, config.project)
+        self.orangebeard_client = OrangebeardClient(orangebeard_config=config)
         return config
 
     def close(self):

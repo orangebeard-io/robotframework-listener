@@ -46,7 +46,7 @@ def get_status(status_str) -> TestStatus:
 
 
 def get_level(level_str) -> LogLevel:
-    if level_str == "INFO":
+    if level_str in ("INFO", "SKIP"):
         return LogLevel.INFO
     if level_str == "WARN":
         return LogLevel.WARN
@@ -144,7 +144,7 @@ class listener(ListenerV2):
         status = get_status(attributes.get("status"))
         message = attributes.get("message")
         if len(message) > 0:
-            level = LogLevel.INFO if status == TestStatus.PASSED else LogLevel.ERROR
+            level = LogLevel.INFO if (status == TestStatus.PASSED or status == TestStatus.SKIPPED) else LogLevel.ERROR
             self.orangebeard_client.log(
                 Log(
                     self.test_run_uuid,
